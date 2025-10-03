@@ -23,6 +23,37 @@
         </div>
 
         <div v-else>
+            <!-- ▼▼▼ ここから追加 ▼▼▼ -->
+            <div id="complete-overlay" v-if="isCompleteScreenVisible">
+                <div class="complete-container">
+                    <h1 class="complete-title">CONGRATULATIONS!</h1>
+                    <p class="complete-subtitle">全ての修行を達成しました！</p>
+                    <hr class="complete-hr">
+                    <p class="complete-message">特別な報酬をプレゼント！</p>
+                    
+                    <div class="rewards-wrapper">
+                        <div v-for="(reward, index) in rewardImages" :key="index" class="reward-item">
+                            <img :src="reward.url" :alt="reward.name" class="reward-image">
+                            <p class="reward-name">{{ reward.name }}</p>
+                            <button class="btn btn-warning btn-sm mt-2" @click="downloadImage(reward.url)">
+                                この画像をダウンロード
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="secret-code-container">
+                        <p class="secret-code-message">この合言葉を「2D WORLD」内の開放ボタンから入力して特典ゲット！</p>
+                        <div class="secret-code-box">
+                            <span>{{ completeSecretCode }}</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-light mt-4" @click="closeCompleteScreen">
+                        閉じる
+                    </button>
+                </div>
+            </div>
+            <!-- ▲▲▲ ここまで追加 ▲▲▲ -->
+
             <div id="map-container">
                 <div id="map"></div>
             </div>
@@ -54,6 +85,15 @@
                         <img v-for="stamp in completedStamps" :key="stamp" :src="stamp" class="stamp-layer" alt="スタンプ">
                     </div>
                 </div>
+
+                <!-- ▼▼▼ ここから追加 ▼▼▼ -->
+                <div v-if="isStampCompleted" class="d-grid gap-2 mb-4">
+                    <button class="btn btn-warning" @click="showCompleteScreen">
+                        🎉 コンプリート報酬を確認する
+                    </button>
+                </div>
+                <!-- ▲▲▲ ここまで追加 ▲▲▲ -->
+
                 <div v-if="inProgressQuests.length > 0" class="card p-3 mb-4 shadow-sm quest-list-container">
                     <h5 class="card-title text-center">進行中の修行内容</h5>
                     <ul class="list-group">

@@ -12,7 +12,14 @@ const urlsToCache = [
   '/images/stamp_layer_3.png',
   '/images/stamp_layer_4.png',
   '/images/stamp_layer_5.png',
-  '/images/special_reward.png'
+  // ▼▼▼ ここから変更 ▼▼▼
+  '/images/oshi_1.png',
+  '/images/oshi_2.png',
+  '/images/oshi_3.png',
+  '/images/oshi_4.png',
+  '/images/oshi_5.png',
+  '/images/special_reward.png' // 報酬画像をキャッシュに追加
+  // ▲▲▲ ここまで変更 ▲▲▲
 ];
 
 // インストール時にファイルをキャッシュする

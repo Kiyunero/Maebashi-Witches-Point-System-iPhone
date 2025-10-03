@@ -12,6 +12,8 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+// --- 設定項目 ---
+// スタンプのレイヤー画像
 const STAMP_LAYERS = [
     'images/stamp_layer_1.png',
     'images/stamp_layer_2.png',
@@ -19,6 +21,22 @@ const STAMP_LAYERS = [
     'images/stamp_layer_4.png',
     'images/stamp_layer_5.png',
 ];
+
+// ▼▼▼ ここから追加 ▼▼▼
+// コンプリートに必要なスタンプの数
+const STAMP_COMPLETE_COUNT = 1;
+
+// コンプリート時の報酬画像リスト（複数登録可能）
+const REWARD_IMAGES = [
+    { name: 'コンプリート報酬', url: 'images/special_reward.png' },
+    // { name: '追加の報酬画像', url: 'images/special_reward_2.png' }, // 追する場合はこのように記述
+];
+
+// コンプリート時の合言葉
+const COMPLETE_SECRET_CODE = '123456'; 
+// ▲▲▲ ここまで追加 ▲▲▲
+// --- 設定項目ここまで ---
+
 
 function initPwaMap() {
     const app = Vue.createApp({
@@ -49,17 +67,27 @@ function initPwaMap() {
                 myOshi: 1,
                 isQuestStartAnimationVisible: false,
                 isQuestClearAnimationVisible: false,
+                // ▼▼▼ ここから追加 ▼▼▼
+                isCompleteScreenVisible: false, // コンプリート画面の表示状態
+                rewardImages: REWARD_IMAGES, // 報酬画像のリスト
+                completeSecretCode: COMPLETE_SECRET_CODE, // 合言葉
+                // ▲▲▲ ここまで追加 ▲▲▲
             };
         },
         computed: {
-            completedStamps() {
-                if (!this.userProfile || !this.userProfile.questProgress) {
-                    return [];
-                }
-                const completedCount = Object.values(this.userProfile.questProgress)
+            // ▼▼▼ ここから変更 ▼▼▼
+            completedQuestCount() {
+                if (!this.userProfile || !this.userProfile.questProgress) return 0;
+                return Object.values(this.userProfile.questProgress)
                     .filter(status => status === 'completed').length;
-                return STAMP_LAYERS.slice(0, completedCount);
             },
+            completedStamps() {
+                return STAMP_LAYERS.slice(0, this.completedQuestCount);
+            },
+            isStampCompleted() {
+                return this.completedQuestCount >= STAMP_COMPLETE_COUNT;
+            },
+            // ▲▲▲ ここまで変更 ▲▲▲
             inProgressQuests() {
                 if (!this.userProfile || !this.userProfile.questProgress || this.allQuests.length === 0) {
                     return [];
@@ -68,9 +96,7 @@ function initPwaMap() {
                     .filter(questId => this.userProfile.questProgress[questId] === 'in_progress');
                 return this.allQuests.filter(quest => inProgressQuestIds.includes(quest.id));
             },
-            rewardImageUrl() {
-                return `images/reward_${this.myOshi}.png`;
-            }
+            // rewardImageUrlは新しい報酬システムでは不要になるため削除
         },
         async mounted() {
             const savedOshi = localStorage.getItem('myOshi');
@@ -85,6 +111,12 @@ function initPwaMap() {
 
             await this.$nextTick();
             this.initializeMap();
+
+            // ▼▼▼ ここから追加 ▼▼▼
+            if (this.isStampCompleted) {
+                this.showCompleteScreen();
+            }
+            // ▲▲▲ ここまで追加 ▲▲▲
         },
         methods: {
             async initializeUser() {
@@ -110,7 +142,13 @@ function initPwaMap() {
                 this.userListener = userRef.onSnapshot((doc) => {
                     console.log("スマホアプリ側でユーザーデータの更新を検知しました。");
                     if (doc.exists) {
+                        // ▼▼▼ ここから変更 ▼▼▼
+                        const oldQuestCount = this.completedQuestCount;
                         this.userProfile = doc.data();
+                        if (this.isStampCompleted && oldQuestCount < STAMP_COMPLETE_COUNT) {
+                           this.showCompleteScreen();
+                        }
+                        // ▲▲▲ ここまで変更 ▲▲▲
                     } else {
                         const newUserProfile = { userId: this.userId, questProgress: {}, points: 0 };
                         userRef.set(newUserProfile);
@@ -273,11 +311,9 @@ function initPwaMap() {
                 try {
                     const userRef = db.collection("users").doc(this.userId);
 
-                    // クエスト開始のQRコード
                     if (qrCodeValue.startsWith('QUEST_START::')) {
                         const questId = qrCodeValue.split('::')[1];
                         
-                        // 既にクリア済み、または進行中の場合は何もしない
                         if (this.userProfile.questProgress[questId]) {
                             this.scanResultMessage = `このクエストは既に開始済み、またはクリア済みです。`;
                             this.scanResultClass = "alert-warning";
@@ -293,7 +329,6 @@ function initPwaMap() {
                         this.playQuestStartAnimation();
 
                     } else {
-                        // クエストクリアのQRコード
                         const questsRef = db.collection("quests");
                         const querySnapshot = await questsRef.where("clearQRCodeValue", "==", qrCodeValue).get();
                         
@@ -306,16 +341,14 @@ function initPwaMap() {
                         const questDoc = querySnapshot.docs[0];
                         const questId = questDoc.id;
                         const questData = questDoc.data();
-                        const questPoints = questData.points || 0; // クエストにポイントが設定されていなければ0
+                        const questPoints = questData.points || 0;
 
-                        // 既にクリア済みの場合は何もしない
                         if (this.userProfile.questProgress[questId] === 'completed') {
                             this.scanResultMessage = `クエスト「${questData.title}」は既にクリア済みです。`;
                             this.scanResultClass = "alert-warning";
                             return;
                         }
                         
-                        // トランザクションでポイントを安全に加算
                         await db.runTransaction(async (transaction) => {
                             const userDoc = await transaction.get(userRef);
                             if (!userDoc.exists) {
@@ -379,7 +412,34 @@ function initPwaMap() {
                         anim.destroy();
                     });
                 });
+            },
+            // ▼▼▼ ここから追加 ▼▼▼
+            showCompleteScreen() {
+                this.isCompleteScreenVisible = true;
+            },
+            closeCompleteScreen() {
+                this.isCompleteScreenVisible = false;
+            },
+            async downloadImage(imageUrl) {
+                try {
+                    const response = await fetch(imageUrl);
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    const fileName = imageUrl.split('/').pop();
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                } catch (error) {
+                    console.error('画像のダウンロードに失敗しました:', error);
+                    alert('画像のダウンロードに失敗しました。');
+                }
             }
+            // ▲▲▲ ここまで追加 ▲▲▲
         }
     });
     window.pwaVueApp = app.mount('#app');
