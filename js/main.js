@@ -19,7 +19,7 @@ const STAMP_LAYERS = [
     'images/stamp_layer_2.png',
     'images/stamp_layer_3.png',
     'images/stamp_layer_4.png',
-    'images/stamp_layer_5.png',
+    'images/stamp_layer_5.png', // typoを修正
 ];
 
 // ▼▼▼ ここから追加 ▼▼▼
@@ -58,24 +58,23 @@ function initPwaMap() {
                 userListener: null,
                 activeInfoWindow: null,
                 oshis: [
-                    { id: 1, name: 'キャラ1', icon: 'images/oshi_1.png' },
-                    { id: 2, name: 'キャラ2', icon: 'images/oshi_2.png' },
-                    { id: 3, name: 'キャラ3', icon: 'images/oshi_3.png' },
-                    { id: 4, name: 'キャラ4', icon: 'images/oshi_4.png' },
-                    { id: 5, name: 'キャラ5', icon: 'images/oshi_5.png' },
+                    { id: 1, name: 'キャラ1', icon: 'images/oshi_1.png', markerIcon: 'images/oshi1.gif' }, 
+                    { id: 2, name: 'キャラ2', icon: 'images/oshi_2.png', markerIcon: 'images/oshi2.gif' },
+                    { id: 3, name: 'キャラ3', icon: 'images/oshi_3.png', markerIcon: 'images/oshi3.gif' }, 
+                    { id: 4, name: 'キャラ4', icon: 'images/oshi_4.png', markerIcon: 'images/oshi4.gif' },
+                    { id: 5, name: 'キャラ5', icon: 'images/oshi_5.png', markerIcon: 'images/oshi5.gif' },
                 ],
                 myOshi: 1,
                 isQuestStartAnimationVisible: false,
                 isQuestClearAnimationVisible: false,
-                // ▼▼▼ ここから追加 ▼▼▼
-                isCompleteScreenVisible: false, // コンプリート画面の表示状態
-                rewardImages: REWARD_IMAGES, // 報酬画像のリスト
-                completeSecretCode: COMPLETE_SECRET_CODE, // 合言葉
-                // ▲▲▲ ここまで追加 ▲▲▲
+                isCompleteScreenVisible: false, 
+                rewardImages: REWARD_IMAGES, 
+                completeSecretCode: COMPLETE_SECRET_CODE, 
+                markerLoadState: 0, 
+                // ▼▼▼ data()から mapMarkers を削除 ▼▼▼
             };
         },
         computed: {
-            // ▼▼▼ ここから変更 ▼▼▼
             completedQuestCount() {
                 if (!this.userProfile || !this.userProfile.questProgress) return 0;
                 return Object.values(this.userProfile.questProgress)
@@ -87,7 +86,6 @@ function initPwaMap() {
             isStampCompleted() {
                 return this.completedQuestCount >= STAMP_COMPLETE_COUNT;
             },
-            // ▲▲▲ ここまで変更 ▲▲▲
             inProgressQuests() {
                 if (!this.userProfile || !this.userProfile.questProgress || this.allQuests.length === 0) {
                     return [];
@@ -96,7 +94,6 @@ function initPwaMap() {
                     .filter(questId => this.userProfile.questProgress[questId] === 'in_progress');
                 return this.allQuests.filter(quest => inProgressQuestIds.includes(quest.id));
             },
-            // rewardImageUrlは新しい報酬システムでは不要になるため削除
         },
         async mounted() {
             const savedOshi = localStorage.getItem('myOshi');
@@ -107,16 +104,15 @@ function initPwaMap() {
             await this.initializeUser();
             this.loading = false;
             
+            // ▼▼▼ ここに mapMarkers の初期化を戻す (元ファイル と同じ) ▼▼▼
             this.mapMarkers = [];
 
             await this.$nextTick();
             this.initializeMap();
 
-            // ▼▼▼ ここから追加 ▼▼▼
             if (this.isStampCompleted) {
                 this.showCompleteScreen();
             }
-            // ▲▲▲ ここまで追加 ▲▲▲
         },
         methods: {
             async initializeUser() {
@@ -142,13 +138,11 @@ function initPwaMap() {
                 this.userListener = userRef.onSnapshot((doc) => {
                     console.log("スマホアプリ側でユーザーデータの更新を検知しました。");
                     if (doc.exists) {
-                        // ▼▼▼ ここから変更 ▼▼▼
                         const oldQuestCount = this.completedQuestCount;
                         this.userProfile = doc.data();
                         if (this.isStampCompleted && oldQuestCount < STAMP_COMPLETE_COUNT) {
                            this.showCompleteScreen();
                         }
-                        // ▲▲▲ ここまで変更 ▲▲▲
                     } else {
                         const newUserProfile = { userId: this.userId, questProgress: {}, points: 0 };
                         userRef.set(newUserProfile);
@@ -180,64 +174,140 @@ function initPwaMap() {
                 const spotsSnapshot = await db.collection('spots').get();
                 this.spots = spotsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             },
+
             placePwaMarkers() {
-                this.mapMarkers.forEach(marker => marker.setMap(null));
-                this.mapMarkers = [];
+                const currentLoadId = ++this.markerLoadState;
 
                 const selectedOshiData = this.oshis.find(o => o.id === this.myOshi);
                 if (!selectedOshiData) {
                     console.error("選択された推しキャラが見つかりません。");
                     return;
                 }
-                const oshiIconUrl = selectedOshiData.icon;
+                
+                const oshiMarkerIconUrl = selectedOshiData.markerIcon;
 
-                this.spots.forEach(spot => {
-                    const position = {
-                        lat: parseFloat(spot.latitude),
-                        lng: parseFloat(spot.longitude)
-                    };
-                    
-                    const questStatus = this.userProfile ? this.userProfile.questProgress[spot.questId] : undefined;
-                    const isCompleted = questStatus === 'completed';
+                const placeMarkers = (scaledSize) => {
+                    if (this.markerLoadState !== currentLoadId) {
+                        console.log("古いマーカー読み込み要求を破棄しました。");
+                        return; 
+                    }
 
-                    const marker = new google.maps.Marker({
-                        position: position,
-                        map: this.map,
-                        title: spot.name,
-                        icon: {
-                            url: oshiIconUrl,
-                            scaledSize: new google.maps.Size(42, 42),
-                        },
-                        opacity: isCompleted ? 0.5 : 1.0
+                    // 既存のマーカーをマップから削除
+                    this.mapMarkers.forEach(item => item.marker.setMap(null)); // item.marker を参照
+                    this.mapMarkers = []; // 配列をリセット
+
+                    this.spots.forEach(spot => {
+                        const position = {
+                            lat: parseFloat(spot.latitude),
+                            lng: parseFloat(spot.longitude)
+                        };
+                        
+                        const questStatus = this.userProfile ? this.userProfile.questProgress[spot.questId] : undefined;
+                        const isCompleted = questStatus === 'completed';
+
+                        const marker = new google.maps.Marker({
+                            position: position,
+                            map: this.map,
+                            title: spot.name,
+                            icon: {
+                                url: oshiMarkerIconUrl,
+                                scaledSize: scaledSize, 
+                            },
+                            opacity: isCompleted ? 0.5 : 1.0,
+                            questId: spot.questId // マーカーにクエストIDを持たせる
+                        });
+                        
+                        const destination = `${spot.latitude},${spot.longitude}`;
+                        const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=walking`;
+
+                        const infoWindow = new google.maps.InfoWindow({
+                            content: `
+                                <div>
+                                    <strong>${spot.name}</strong><br>
+                                    <a href="${mapsUrl}" target="_blank" class="btn btn-primary btn-sm mt-2">Google マップでナビを開始</a>
+                                </div>
+                            `
+                        });
+
+                        marker.addListener('click', () => {
+                            if (this.activeInfoWindow) {
+                                this.activeInfoWindow.close();
+                            }
+                            infoWindow.open(this.map, marker);
+                            this.activeInfoWindow = infoWindow;
+                        });
+                        
+                        // マーカー、情報ウィンドウ、クエストIDをセットで保存
+                        this.mapMarkers.push({ 
+                            marker: marker, 
+                            infoWindow: infoWindow, 
+                            questId: spot.questId 
+                        });
                     });
-                    
-                    const destination = `${spot.latitude},${spot.longitude}`;
-                    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=walking`;
+                };
 
-                    const infoWindow = new google.maps.InfoWindow({
-                        content: `
-                            <div>
-                                <strong>${spot.name}</strong><br>
-                                <a href="${mapsUrl}" target="_blank" class="btn btn-primary btn-sm mt-2">Google マップでナビを開始</a>
-                            </div>
-                        `
-                    });
+                const img = new Image();
+                img.onload = () => {
+                    const MAX_DIMENSION = 50; 
+                    let scaledWidth, scaledHeight;
 
-                    marker.addListener('click', () => {
-                        if (this.activeInfoWindow) {
-                            this.activeInfoWindow.close();
-                        }
-                        infoWindow.open(this.map, marker);
-                        this.activeInfoWindow = infoWindow;
-                    });
-                    this.mapMarkers.push(marker);
-                });
+                    if (img.width === 0 || img.height === 0) {
+                        scaledWidth = MAX_DIMENSION;
+                        scaledHeight = MAX_DIMENSION;
+                    } else if (img.width > img.height) {
+                        scaledWidth = MAX_DIMENSION;
+                        scaledHeight = (img.height / img.width) * MAX_DIMENSION;
+                    } else {
+                        scaledHeight = MAX_DIMENSION;
+                        scaledWidth = (img.width / img.height) * MAX_DIMENSION;
+                    }
+
+                    const finalScaledSize = new google.maps.Size(scaledWidth, scaledHeight);
+                    placeMarkers(finalScaledSize);
+                };
+
+                img.onerror = () => {
+                    console.error("マーカー画像のロードに失敗しました: ", oshiMarkerIconUrl);
+                    const fallbackSize = new google.maps.Size(42, 42);
+                    placeMarkers(fallbackSize);
+                };
+                
+                img.src = oshiMarkerIconUrl; 
             },
             
             setMyOshi(oshiId) {
                 this.myOshi = oshiId;
                 localStorage.setItem('myOshi', oshiId);
                 this.placePwaMarkers();
+            },
+
+            focusOnQuestSpot(questId) {
+                const spot = this.spots.find(s => s.questId === questId);
+                if (!spot) {
+                    console.warn(`クエストID ${questId} に関連するスポットが見つかりません。`);
+                    return;
+                }
+
+                // this.mapMarkers は非リアクティブでも参照可能
+                const markerData = this.mapMarkers.find(m => m.questId === questId);
+                if (!markerData) {
+                    console.warn(`クエストID ${questId} に関連するマーカーが見つかりません。`);
+                    return;
+                }
+
+                const { marker, infoWindow } = markerData;
+
+                const position = {
+                    lat: parseFloat(spot.latitude),
+                    lng: parseFloat(spot.longitude)
+                };
+                this.map.panTo(position);
+
+                if (this.activeInfoWindow) {
+                    this.activeInfoWindow.close();
+                }
+                infoWindow.open(this.map, marker);
+                this.activeInfoWindow = infoWindow;
             },
 
             async generateAuthToken() {
@@ -413,7 +483,6 @@ function initPwaMap() {
                     });
                 });
             },
-            // ▼▼▼ ここから追加 ▼▼▼
             showCompleteScreen() {
                 this.isCompleteScreenVisible = true;
             },
@@ -439,7 +508,6 @@ function initPwaMap() {
                     alert('画像のダウンロードに失敗しました。');
                 }
             }
-            // ▲▲▲ ここまで追加 ▲▲▲
         }
     });
     window.pwaVueApp = app.mount('#app');

@@ -23,7 +23,6 @@
         </div>
 
         <div v-else>
-            <!-- ▼▼▼ ここから追加 ▼▼▼ -->
             <div id="complete-overlay" v-if="isCompleteScreenVisible">
                 <div class="complete-container">
                     <h1 class="complete-title">CONGRATULATIONS!</h1>
@@ -52,8 +51,6 @@
                     </button>
                 </div>
             </div>
-            <!-- ▲▲▲ ここまで追加 ▲▲▲ -->
-
             <div id="map-container">
                 <div id="map"></div>
             </div>
@@ -86,22 +83,28 @@
                     </div>
                 </div>
 
-                <!-- ▼▼▼ ここから追加 ▼▼▼ -->
                 <div v-if="isStampCompleted" class="d-grid gap-2 mb-4">
                     <button class="btn btn-warning" @click="showCompleteScreen">
                         🎉 コンプリート報酬を確認する
                     </button>
                 </div>
-                <!-- ▲▲▲ ここまで追加 ▲▲▲ -->
 
                 <div v-if="inProgressQuests.length > 0" class="card p-3 mb-4 shadow-sm quest-list-container">
                     <h5 class="card-title text-center">進行中の修行内容</h5>
-                    <ul class="list-group">
-                        <li v-for="quest in inProgressQuests" :key="quest.id" class="list-group-item quest-item-card">
-                            <strong>{{ quest.title }}</strong>
+                    <div class="list-group">
+                        <a v-for="quest in inProgressQuests" 
+                           :key="quest.id" 
+                           href="#" 
+                           @click.prevent="focusOnQuestSpot(quest.id)" 
+                           class="list-group-item list-group-item-action quest-item-action">
+                            
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <strong class="mb-1">{{ quest.title }}</strong>
+                                <span class="quest-map-link">🗺️ マップで確認</span>
+                            </div>
                             <p class="mb-1 small">{{ quest.description }}</p>
-                        </li>
-                    </ul>
+                        </a>
+                    </div>
                 </div>
                 <div class="d-grid gap-2 mt-4">
                     <button class="btn btn-success btn-lg" @click="startScanner">

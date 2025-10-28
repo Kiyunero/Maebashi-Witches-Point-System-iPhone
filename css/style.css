@@ -332,6 +332,26 @@ body {
     text-align: left;
 }
 
-.quest-item-card {
-    background-color: #e9ecef;
+/* ▼▼▼ .quest-item-card を削除し、以下を追加 ▼▼▼ */
+.quest-item-action {
+    background-color: #e9ecef; /* 元の .quest-item-card の色 */
+    color: #212529;
+    margin-bottom: 10px;
 }
+
+/* タップ/ホバー時の色を少し濃くする */
+.quest-item-action:hover,
+.quest-item-action:focus {
+    background-color: #dcdfe2; 
+    color: #212529;
+}
+
+/* マップ確認用テキストのスタイル */
+.quest-map-link {
+    font-size: 0.85rem;
+    color: #0d6efd; /* Bootstrapのプライマリカラー */
+    font-weight: bold;
+    white-space: nowrap; /* 折り返さない */
+    padding-left: 0.5rem; /* タイトルとの間隔 */
+}
+/* ▲▲▲ ここまで追加 ▲▲▲ */
